@@ -1,0 +1,19 @@
+data_path: data/electricity/electricity.csv
+seq_len: 336
+pred_len: 336
+
+model: dlinear
+kernel_size: 25
+individual: true
+
+batch_size: 32
+lr: 5.0e-3
+epochs: 30
+patience: 5
+lr_schedule: type3
+num_workers: 4
+seed: 2021
+
+run_name: dlinear_electricity_336
+results_dir: results
+checkpoint_dir: results/checkpoints
