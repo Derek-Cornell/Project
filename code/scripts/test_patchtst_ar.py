@@ -64,6 +64,17 @@ def main() -> None:
         f"{(y - golden).abs().max().item()}"
     )
     print("  [1] direct-mode regression vs golden: pass")
+
+    # Invariant 2: same output shape across modes.
+    direct = _build_direct()
+    ar = _build_ar()
+    direct.eval(); ar.eval()
+    with torch.no_grad():
+        y_direct = direct(x)
+        y_ar = ar(x)
+    assert y_direct.shape == (B, T, M), f"direct shape {tuple(y_direct.shape)}"
+    assert y_ar.shape == (B, T, M), f"AR shape {tuple(y_ar.shape)}"
+    print("  [2] output shape across modes: pass")
     print("\nAll invariants pass.")
 
 
