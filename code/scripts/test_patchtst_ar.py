@@ -138,6 +138,20 @@ def main() -> None:
         raised = True
     assert raised, "unknown forecasting_mode should raise ValueError"
     print("  [6] mode validation raises ValueError: pass")
+
+    # Invariant 7: pred_len=1 works in both modes (no special lower-bound check).
+    direct1 = PatchTST(c_in=M, seq_len=L, pred_len=1, **TINY_KW)
+    ar1 = PatchTST(
+        c_in=M, seq_len=L, pred_len=1,
+        forecasting_mode="autoregressive", **TINY_KW,
+    )
+    direct1.eval(); ar1.eval()
+    with torch.no_grad():
+        y_d1 = direct1(x)
+        y_a1 = ar1(x)
+    assert y_d1.shape == (B, 1, M)
+    assert y_a1.shape == (B, 1, M)
+    print("  [7] pred_len=1 in both modes: pass")
     print("\nAll invariants pass.")
 
 
