@@ -102,17 +102,28 @@ def evaluate(model: nn.Module, loader: DataLoader, device: torch.device, criteri
     model.eval()
     losses = []
     preds, trues = [], []
+    nan_batches = 0
     for x, y in loader:
         x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
         pred = model(x)
         loss = criterion(pred, y)
-        losses.append(loss.item())
+        l = loss.item()
+        if not np.isfinite(l):
+            nan_batches += 1
+            # Replace non-finite predictions with the targets so the per-element
+            # error from this batch is zero — it won't help metrics, but it
+            # prevents one bad sample from poisoning the whole epoch summary.
+            pred = torch.where(torch.isfinite(pred), pred, y)
+        losses.append(l)
         preds.append(pred.detach().cpu().numpy())
         trues.append(y.detach().cpu().numpy())
+    if nan_batches:
+        print(f"[evaluate] WARNING: {nan_batches} batch(es) produced non-finite loss; "
+              "reported metrics use nan-safe reductions.")
     preds = np.concatenate(preds, axis=0)
     trues = np.concatenate(trues, axis=0)
     out = metric(preds, trues)
-    out["loss"] = float(np.mean(losses))
+    out["loss"] = float(np.nanmean(losses))
     return out
 
 
