@@ -75,6 +75,22 @@ def main() -> None:
     assert y_direct.shape == (B, T, M), f"direct shape {tuple(y_direct.shape)}"
     assert y_ar.shape == (B, T, M), f"AR shape {tuple(y_ar.shape)}"
     print("  [2] output shape across modes: pass")
+
+    # Invariant 3: trim correctness when pred_len % patch_len != 0.
+    T_odd = 100  # patch_len defaults to 16; 100 % 16 == 4
+    ar_odd = _build_ar(pred_len=T_odd)
+    ar_odd.eval()
+    with torch.no_grad():
+        y_odd = ar_odd(x)
+    assert y_odd.shape == (B, T_odd, M), (
+        f"AR with pred_len={T_odd} returned {tuple(y_odd.shape)}, "
+        f"expected {(B, T_odd, M)}"
+    )
+    # Also verify the helper does the trim, not just forward().
+    with torch.no_grad():
+        y_helper_odd = ar_odd.autoregressive_forecast(x, pred_len=T_odd)
+    assert y_helper_odd.shape == (B, T_odd, M)
+    print("  [3] trim correctness for pred_len=100: pass")
     print("\nAll invariants pass.")
 
 
