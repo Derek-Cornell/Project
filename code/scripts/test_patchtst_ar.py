@@ -89,7 +89,10 @@ def main() -> None:
     # Also verify the helper does the trim, not just forward().
     with torch.no_grad():
         y_helper_odd = ar_odd.autoregressive_forecast(x, pred_len=T_odd)
-    assert y_helper_odd.shape == (B, T_odd, M)
+    assert y_helper_odd.shape == (B, T_odd, M), (
+        f"autoregressive_forecast trim returned {tuple(y_helper_odd.shape)}, "
+        f"expected {(B, T_odd, M)}"
+    )
     print("  [3] trim correctness for pred_len=100: pass")
 
     # Invariant 4: gradient flow through the AR rollout.
@@ -121,10 +124,23 @@ def main() -> None:
         "forward() and autoregressive_forecast() disagree in AR mode; "
         f"max abs diff = {(y_fwd - y_helper).abs().max().item()}"
     )
-    # Default pred_len=None should also work.
+    # `pred_len=None` must resolve to self.pred_len. Verify by building a
+    # second model with a different pred_len and confirming the helper's
+    # default matches that model's forward(), not ar_agree's.
+    other = _build_ar(pred_len=48)
+    other.eval()
     with torch.no_grad():
-        y_helper_default = ar_agree.autoregressive_forecast(x)
-    assert torch.allclose(y_fwd, y_helper_default)
+        y_other_fwd = other(x)
+        y_other_default = other.autoregressive_forecast(x)
+    assert y_other_default.shape == y_other_fwd.shape, (
+        f"default pred_len resolved to wrong horizon: "
+        f"{tuple(y_other_default.shape)} vs forward {tuple(y_other_fwd.shape)}"
+    )
+    assert torch.allclose(y_other_fwd, y_other_default), (
+        "autoregressive_forecast(x) (default pred_len) disagrees with forward() "
+        f"on a model with pred_len=48; max abs diff = "
+        f"{(y_other_fwd - y_other_default).abs().max().item()}"
+    )
     print("  [5] helper agreement: pass")
 
     # Invariant 6: unknown forecasting_mode raises ValueError.
@@ -149,8 +165,12 @@ def main() -> None:
     with torch.no_grad():
         y_d1 = direct1(x)
         y_a1 = ar1(x)
-    assert y_d1.shape == (B, 1, M)
-    assert y_a1.shape == (B, 1, M)
+    assert y_d1.shape == (B, 1, M), (
+        f"direct mode pred_len=1 returned {tuple(y_d1.shape)}, expected {(B, 1, M)}"
+    )
+    assert y_a1.shape == (B, 1, M), (
+        f"AR mode pred_len=1 returned {tuple(y_a1.shape)}, expected {(B, 1, M)}"
+    )
     print("  [7] pred_len=1 in both modes: pass")
     print("\nAll invariants pass.")
 
