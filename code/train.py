@@ -42,6 +42,7 @@ class Config:
     dropout: float = 0.2
     head_dropout: float = 0.0
     revin: bool = True
+    forecasting_mode: str = "direct"   # PatchTST only: "direct" | "autoregressive"
     kernel_size: int = 25              # DLinear only
     individual: bool = True            # DLinear only
 
@@ -76,6 +77,7 @@ def _build_model(cfg: Config, c_in: int) -> nn.Module:
             dropout=cfg.dropout,
             head_dropout=cfg.head_dropout,
             revin=cfg.revin,
+            forecasting_mode=cfg.forecasting_mode,
         )
     if cfg.model == "dlinear":
         return DLinear(

@@ -79,6 +79,10 @@ class PatchTST(nn.Module):
     dropout    : dropout used inside encoder layers and after patch projection
     head_dropout : dropout applied right before the flatten+linear head
     revin      : whether to apply Reversible Instance Normalization
+    forecasting_mode : "direct" maps the encoder output to all T future steps in
+                 one shot (paper default). "autoregressive" uses a smaller head
+                 that emits one patch at a time and rolls out a sliding window
+                 until pred_len is reached.
     """
 
     def __init__(
@@ -95,14 +99,20 @@ class PatchTST(nn.Module):
         dropout: float = 0.2,
         head_dropout: float = 0.0,
         revin: bool = True,
+        forecasting_mode: str = "direct",
     ):
         super().__init__()
+        if forecasting_mode not in ("direct", "autoregressive"):
+            raise ValueError(
+                f"forecasting_mode must be 'direct' or 'autoregressive', got {forecasting_mode!r}"
+            )
         self.c_in = c_in
         self.seq_len = seq_len
         self.pred_len = pred_len
         self.patch_len = patch_len
         self.stride = stride
         self.d_model = d_model
+        self.forecasting_mode = forecasting_mode
 
         # Number of patches after padding the last S values onto the end of the series.
         self.patch_num = (seq_len - patch_len) // stride + 2
@@ -122,40 +132,103 @@ class PatchTST(nn.Module):
             [_EncoderLayer(d_model, n_heads, d_ff, dropout) for _ in range(n_layers)]
         )
 
-        # Flatten + linear head: (N*D) -> T, applied per channel
+        # Head output width depends on mode: pred_len for direct, patch_len for AR.
+        head_out = pred_len if forecasting_mode == "direct" else patch_len
         self.head = nn.Sequential(
             nn.Flatten(start_dim=-2),
             nn.Dropout(head_dropout),
-            nn.Linear(self.patch_num * d_model, pred_len),
+            nn.Linear(self.patch_num * d_model, head_out),
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (B, L, M) — standard time-series convention
-        B, L, M = x.shape
+    def _encode(self, x_norm: torch.Tensor) -> torch.Tensor:
+        """Patch + project + encode. Input is already RevIN-normalized.
+
+        x_norm : (B, L, M)
+        returns: (B*M, N, D)
+        """
+        B, L, M = x_norm.shape
         assert L == self.seq_len, f"expected look-back {self.seq_len}, got {L}"
         assert M == self.c_in, f"expected {self.c_in} channels, got {M}"
 
-        if self.revin is not None:
-            x = self.revin(x, mode="norm")
-
-        # (B, L, M) -> (B, M, L) so we can pad+unfold along the time axis
-        x = x.permute(0, 2, 1)
+        # (B, L, M) -> (B, M, L) -> pad -> unfold along time
+        x = x_norm.permute(0, 2, 1)
         x = self.padding_patch(x)  # (B, M, L+S)
         x = x.unfold(dimension=-1, size=self.patch_len, step=self.stride)  # (B, M, N, P)
 
         # Channel independence: fold M into the batch dimension
         x = x.reshape(B * M, self.patch_num, self.patch_len)
-
-        # Patch projection + positional encoding
         x = self.W_p(x) + self.W_pos.unsqueeze(0)  # (B*M, N, D)
         x = self.dropout(x)
 
         for layer in self.encoder:
-            x = layer(x)  # (B*M, N, D)
+            x = layer(x)
+        return x  # (B*M, N, D)
 
-        out = self.head(x)  # (B*M, T)
-        out = out.reshape(B, M, self.pred_len).permute(0, 2, 1)  # (B, T, M)
+    def _direct_step(self, x_norm: torch.Tensor) -> torch.Tensor:
+        """Direct forecast in normalized space: (B, L, M) -> (B, pred_len, M)."""
+        B, _, M = x_norm.shape
+        z = self._encode(x_norm)
+        out = self.head(z)  # (B*M, pred_len)
+        return out.reshape(B, M, self.pred_len).permute(0, 2, 1)
 
+    def _ar_step(self, x_norm: torch.Tensor) -> torch.Tensor:
+        """One AR step in normalized space: (B, L, M) -> (B, patch_len, M)."""
+        B, _, M = x_norm.shape
+        z = self._encode(x_norm)
+        out = self.head(z)  # (B*M, patch_len)
+        return out.reshape(B, M, self.patch_len).permute(0, 2, 1)
+
+    def autoregressive_forecast(self, x: torch.Tensor, pred_len: int | None = None) -> torch.Tensor:
+        """Roll out predictions one patch at a time until ``pred_len`` is reached.
+
+        Each iteration predicts the next ``patch_len`` values, slides the L-length
+        context forward by ``patch_len`` (dropping the oldest values, appending the
+        new patch), and continues. The final output is trimmed to exactly pred_len.
+
+        x        : (B, L, M)
+        pred_len : forecast horizon. Defaults to ``self.pred_len``.
+        returns  : (B, pred_len, M)
+        """
+        if pred_len is None:
+            pred_len = self.pred_len
+        B, L, M = x.shape
+        assert L == self.seq_len, f"expected look-back {self.seq_len}, got {L}"
+        assert M == self.c_in, f"expected {self.c_in} channels, got {M}"
+
+        # Normalize once so the rolled-out context lives in a single normalized space;
+        # denormalize the concatenated predictions at the end.
+        if self.revin is not None:
+            x_norm = self.revin(x, mode="norm")
+        else:
+            x_norm = x
+
+        context = x_norm
+        chunks = []
+        produced = 0
+        while produced < pred_len:
+            patch = self._ar_step(context)  # (B, patch_len, M), still normalized
+            chunks.append(patch)
+            produced += self.patch_len
+            if produced < pred_len:
+                # Slide the L-length window forward by patch_len.
+                context = torch.cat([context[:, self.patch_len:, :], patch], dim=1)
+
+        out = torch.cat(chunks, dim=1)[:, :pred_len, :]  # (B, pred_len, M)
+
+        if self.revin is not None:
+            out = self.revin(out, mode="denorm")
+        return out
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x: (B, L, M) — standard time-series convention
+        if self.forecasting_mode == "autoregressive":
+            return self.autoregressive_forecast(x, self.pred_len)
+
+        if self.revin is not None:
+            x_norm = self.revin(x, mode="norm")
+        else:
+            x_norm = x
+        out = self._direct_step(x_norm)
         if self.revin is not None:
             out = self.revin(out, mode="denorm")
         return out

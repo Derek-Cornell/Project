@@ -43,6 +43,17 @@ def main() -> None:
         (B, T, M),
     )
 
+    print("\nPatchTST autoregressive (smoke shape check only — full suite in test_patchtst_ar.py):")
+    _check(
+        "patchtst-ar",
+        PatchTST(
+            c_in=M, seq_len=L, pred_len=T, d_model=32, n_heads=4, n_layers=2, d_ff=64,
+            forecasting_mode="autoregressive",
+        ),
+        x,
+        (B, T, M),
+    )
+
     print("\nDLinear (individual=True):")
     _check(
         "dlinear",
