@@ -40,8 +40,11 @@ class Config:
     n_layers: int = 3
     d_ff: int = 256
     dropout: float = 0.2
+    attn_dropout: float = 0.0          # softmax-weights dropout (reference default 0)
     head_dropout: float = 0.0
     revin: bool = True
+    affine: bool = False               # RevIN affine — reference electricity script: False
+    res_attention: bool = True         # RealFormer-style residual attention scores
     forecasting_mode: str = "direct"   # PatchTST only: "direct" | "autoregressive"
     kernel_size: int = 25              # DLinear only
     individual: bool = True            # DLinear only
@@ -51,7 +54,8 @@ class Config:
     lr: float = 1e-4
     epochs: int = 100
     patience: int = 10
-    lr_schedule: str = "type1"
+    lr_schedule: str = "TST"           # 'TST' = OneCycleLR (electricity script default)
+    pct_start: float = 0.2             # OneCycleLR warmup fraction
     num_workers: int = 4
     seed: int = 2021
 
@@ -75,8 +79,11 @@ def _build_model(cfg: Config, c_in: int) -> nn.Module:
             n_layers=cfg.n_layers,
             d_ff=cfg.d_ff,
             dropout=cfg.dropout,
+            attn_dropout=cfg.attn_dropout,
             head_dropout=cfg.head_dropout,
             revin=cfg.revin,
+            affine=cfg.affine,
+            res_attention=cfg.res_attention,
             forecasting_mode=cfg.forecasting_mode,
         )
     if cfg.model == "dlinear":
@@ -130,6 +137,19 @@ def train(cfg: Config) -> Dict[str, Any]:
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)
     criterion = nn.MSELoss()
 
+    # OneCycleLR per the reference 'TST' lradj, stepping every iteration.
+    train_steps = len(loaders["train"])
+    if cfg.lr_schedule == "TST":
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(
+            optimizer=optimizer,
+            steps_per_epoch=train_steps,
+            pct_start=cfg.pct_start,
+            epochs=cfg.epochs,
+            max_lr=cfg.lr,
+        )
+    else:
+        scheduler = None
+
     ckpt_path = os.path.join(cfg.checkpoint_dir, f"{cfg.run_name}.pt")
     stopper = EarlyStopping(patience=cfg.patience)
 
@@ -149,9 +169,14 @@ def train(cfg: Config) -> Dict[str, Any]:
             optimizer.step()
             train_losses.append(loss.item())
             pbar.set_postfix(loss=f"{np.mean(train_losses):.4f}")
+            if scheduler is not None:
+                scheduler.step()
 
         val_metrics = evaluate(model, loaders["val"], device, criterion)
-        lr_now = adjust_learning_rate(optimizer, epoch + 1, cfg.lr, schedule=cfg.lr_schedule)
+        if scheduler is not None:
+            lr_now = scheduler.get_last_lr()[0]
+        else:
+            lr_now = adjust_learning_rate(optimizer, epoch + 1, cfg.lr, schedule=cfg.lr_schedule)
         elapsed = time.time() - tic
         print(
             f"[train] epoch {epoch:03d} | "

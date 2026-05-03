@@ -109,7 +109,7 @@ def main() -> None:
     assert torch.isfinite(g).all(), "non-finite grad on W_p"
     assert g.abs().sum().item() > 0, "all-zero grad on W_p — rollout not differentiating"
     # The AR head must also receive gradient.
-    head_linear = ar_grad.head[-1]  # final nn.Linear in the head Sequential
+    head_linear = next(m for m in ar_grad.head if isinstance(m, torch.nn.Linear))
     hg = head_linear.weight.grad
     assert hg is not None and hg.abs().sum().item() > 0, "no grad on AR head"
     print("  [4] gradient flow in AR mode: pass")

@@ -120,7 +120,7 @@ def build_dataloaders(
             batch_size=batch_size,
             shuffle=False,
             num_workers=num_workers,
-            drop_last=False,
+            drop_last=True,  # matches reference data_provider/data_factory.py
             pin_memory=True,
         ),
     }
