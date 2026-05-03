@@ -91,6 +91,25 @@ def main() -> None:
         y_helper_odd = ar_odd.autoregressive_forecast(x, pred_len=T_odd)
     assert y_helper_odd.shape == (B, T_odd, M)
     print("  [3] trim correctness for pred_len=100: pass")
+
+    # Invariant 4: gradient flow through the AR rollout.
+    ar_grad = _build_ar()
+    ar_grad.train()
+    x_grad = _fixed_input(seed=1)
+    target = torch.zeros(B, T, M)
+    out = ar_grad(x_grad)
+    loss = (out - target).pow(2).mean()
+    loss.backward()
+    # The patch projection is in the shared encoder — must receive gradient.
+    g = ar_grad.W_p.weight.grad
+    assert g is not None, "no grad on W_p — autograd graph broken in AR mode"
+    assert torch.isfinite(g).all(), "non-finite grad on W_p"
+    assert g.abs().sum().item() > 0, "all-zero grad on W_p — rollout not differentiating"
+    # The AR head must also receive gradient.
+    head_linear = ar_grad.head[-1]  # final nn.Linear in the head Sequential
+    hg = head_linear.weight.grad
+    assert hg is not None and hg.abs().sum().item() > 0, "no grad on AR head"
+    print("  [4] gradient flow in AR mode: pass")
     print("\nAll invariants pass.")
 
 
