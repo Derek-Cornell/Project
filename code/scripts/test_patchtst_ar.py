@@ -1,0 +1,58 @@
+"""Regression suite for PatchTST autoregressive forecasting mode.
+
+Runs the seven invariants from
+docs/superpowers/specs/2026-05-03-patchtst-autoregressive-mode-design.md.
+
+Usage:
+
+    python code/scripts/test_patchtst_ar.py
+
+Prints one line per invariant, exits non-zero on failure.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+
+import torch
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from models import PatchTST  # noqa: E402
+
+
+# Shared tiny-model fixture matching smoke_test.py so the two stay aligned.
+B, L, M, T = 4, 336, 8, 96
+TINY_KW = dict(d_model=32, n_heads=4, n_layers=2, d_ff=64)
+GOLDEN_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "tests_data", "patchtst_direct_golden.pt"
+)
+
+
+def _fixed_input(seed: int = 0) -> torch.Tensor:
+    g = torch.Generator().manual_seed(seed)
+    return torch.randn(B, L, M, generator=g)
+
+
+def _build_direct(seed: int = 0) -> PatchTST:
+    torch.manual_seed(seed)
+    return PatchTST(c_in=M, seq_len=L, pred_len=T, **TINY_KW)
+
+
+def _build_ar(seed: int = 0, pred_len: int = T) -> PatchTST:
+    torch.manual_seed(seed)
+    return PatchTST(
+        c_in=M, seq_len=L, pred_len=pred_len,
+        forecasting_mode="autoregressive", **TINY_KW,
+    )
+
+
+def main() -> None:
+    print("PatchTST AR regression suite")
+    # Invariants get added in subsequent tasks.
+    print("\nAll invariants pass.")
+
+
+if __name__ == "__main__":
+    main()
