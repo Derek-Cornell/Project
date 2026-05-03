@@ -50,7 +50,20 @@ def _build_ar(seed: int = 0, pred_len: int = T) -> PatchTST:
 
 def main() -> None:
     print("PatchTST AR regression suite")
-    # Invariants get added in subsequent tasks.
+    x = _fixed_input()
+
+    # Invariant 1: direct-mode regression-safe vs. pre-AR golden.
+    model = _build_direct()
+    model.eval()
+    with torch.no_grad():
+        y = model(x)
+    golden = torch.load(GOLDEN_PATH, map_location="cpu", weights_only=True)
+    assert y.shape == golden.shape, f"shape mismatch: {tuple(y.shape)} vs {tuple(golden.shape)}"
+    assert torch.allclose(y, golden, atol=1e-6, rtol=1e-5), (
+        f"direct mode drifted from pre-AR baseline: max abs diff = "
+        f"{(y - golden).abs().max().item()}"
+    )
+    print("  [1] direct-mode regression vs golden: pass")
     print("\nAll invariants pass.")
 
 
