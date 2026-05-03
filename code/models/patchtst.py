@@ -191,6 +191,8 @@ class PatchTST(nn.Module):
         """
         if pred_len is None:
             pred_len = self.pred_len
+        if pred_len < 1:
+            raise ValueError(f"pred_len must be >= 1, got {pred_len}")
         B, L, M = x.shape
         assert L == self.seq_len, f"expected look-back {self.seq_len}, got {L}"
         assert M == self.c_in, f"expected {self.c_in} channels, got {M}"
