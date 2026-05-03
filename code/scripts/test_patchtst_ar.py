@@ -126,6 +126,18 @@ def main() -> None:
         y_helper_default = ar_agree.autoregressive_forecast(x)
     assert torch.allclose(y_fwd, y_helper_default)
     print("  [5] helper agreement: pass")
+
+    # Invariant 6: unknown forecasting_mode raises ValueError.
+    raised = False
+    try:
+        PatchTST(
+            c_in=M, seq_len=L, pred_len=T,
+            forecasting_mode="banana", **TINY_KW,
+        )
+    except ValueError:
+        raised = True
+    assert raised, "unknown forecasting_mode should raise ValueError"
+    print("  [6] mode validation raises ValueError: pass")
     print("\nAll invariants pass.")
 
 
