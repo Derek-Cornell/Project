@@ -110,6 +110,22 @@ def main() -> None:
     hg = head_linear.weight.grad
     assert hg is not None and hg.abs().sum().item() > 0, "no grad on AR head"
     print("  [4] gradient flow in AR mode: pass")
+
+    # Invariant 5: autoregressive_forecast() agrees with forward() in AR mode.
+    ar_agree = _build_ar()
+    ar_agree.eval()
+    with torch.no_grad():
+        y_fwd = ar_agree(x)
+        y_helper = ar_agree.autoregressive_forecast(x, pred_len=T)
+    assert torch.allclose(y_fwd, y_helper), (
+        "forward() and autoregressive_forecast() disagree in AR mode; "
+        f"max abs diff = {(y_fwd - y_helper).abs().max().item()}"
+    )
+    # Default pred_len=None should also work.
+    with torch.no_grad():
+        y_helper_default = ar_agree.autoregressive_forecast(x)
+    assert torch.allclose(y_fwd, y_helper_default)
+    print("  [5] helper agreement: pass")
     print("\nAll invariants pass.")
 
 
