@@ -24,7 +24,6 @@ data/electricity/
 data/**/*.csv
 
 # Training artifacts
-results/
 checkpoints/
 
 # Editor / OS
