@@ -1,0 +1,19 @@
+data_path: data/illness/national_illness.csv
+seq_len: 104
+pred_len: 24
+
+model: dlinear
+kernel_size: 25
+individual: false
+
+batch_size: 32
+lr: 1.0e-2
+epochs: 100
+patience: 100
+lr_schedule: type1
+num_workers: 4
+seed: 2021
+
+run_name: dlinear_illness_24
+results_dir: results
+checkpoint_dir: results/checkpoints

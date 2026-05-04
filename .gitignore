@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.so
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data (downloaded separately — see data/README.md)
+data/electricity/
+data/**/*.csv
+
+# Training artifacts
+results/
+checkpoints/
+
+# Editor / OS
+.idea/
+.vscode/

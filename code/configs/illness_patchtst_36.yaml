@@ -1,0 +1,29 @@
+data_path: data/illness/national_illness.csv
+seq_len: 104
+pred_len: 36
+
+model: patchtst
+patch_len: 24
+stride: 2
+d_model: 16
+n_heads: 4
+n_layers: 3
+d_ff: 128
+dropout: 0.3
+attn_dropout: 0.0
+head_dropout: 0.0
+revin: true
+affine: false
+res_attention: true
+
+batch_size: 16
+lr: 2.5e-3
+epochs: 100
+patience: 100
+lr_schedule: constant
+num_workers: 4
+seed: 2021
+
+run_name: patchtst_illness_36
+results_dir: results
+checkpoint_dir: results/checkpoints
