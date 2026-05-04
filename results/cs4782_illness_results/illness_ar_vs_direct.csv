@@ -1,0 +1,5 @@
+horizon,rollouts,n_seeds,direct_mse_mean,ar_mse_mean,delta_mse_mean,delta_mse_std,direct_mae_mean,ar_mae_mean,delta_mae_mean,delta_mae_std,verdict
+24,1,3,1.57743,1.57743,0.0,0.0,0.82341,0.82341,0.0,0.0,degenerate
+36,2,3,1.5607,1.64492,0.08422,0.15195,0.8537,0.86223,0.00852,0.03425,tied
+48,2,3,1.71504,1.80034,0.0853,0.11745,0.87576,0.89467,0.01891,0.06061,tied
+60,3,3,1.9128,1.70421,-0.2086,0.137,0.9589,0.90181,-0.05709,0.04105,AR wins
