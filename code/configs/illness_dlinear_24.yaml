@@ -10,7 +10,7 @@ batch_size: 32
 lr: 1.0e-2
 epochs: 100
 patience: 100
-lr_schedule: type1
+lr_schedule: type3
 num_workers: 4
 seed: 2021
 

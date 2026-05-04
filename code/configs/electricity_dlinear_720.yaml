@@ -4,12 +4,12 @@ pred_len: 720
 
 model: dlinear
 kernel_size: 25
-individual: true
+individual: false
 
-batch_size: 32
-lr: 5.0e-3
-epochs: 30
-patience: 5
+batch_size: 16
+lr: 1.0e-3
+epochs: 100
+patience: 100
 lr_schedule: type3
 num_workers: 4
 seed: 2021
