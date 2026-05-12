@@ -33,33 +33,62 @@ report/                            2-page report (LaTeX source; compile with pdf
 
 ## 5. Reproduction Steps
 
-**Data.** Both datasets ship in the standard Autoformer Google Drive bundle:
-https://drive.google.com/drive/folders/1ZOYpTUa82_jCcxIdTmyr0LXQfvaM9vIy
+We recommend running everything on **Google Colab with a GPU runtime**. A free T4 GPU is sufficient for the entire ILI track.
 
-- ILI (required for the headline track): place `national_illness.csv` at `data/illness/national_illness.csv` — 966 weekly rows × 7 numeric columns + a `date` column.
-- Electricity (optional): place `electricity.csv` at `data/electricity/electricity.csv` — 26 304 hourly rows × 321 numeric columns + a `date` column.
+**Step 1 — Open a Colab notebook with a GPU**
 
-**Run.** From the repo root:
+Go to [colab.research.google.com](https://colab.research.google.com), create a new notebook, then `Runtime → Change runtime type → Hardware accelerator: T4 GPU` (free) or `A100 GPU` (Pro). Confirm with:
+
+```python
+import torch
+print('CUDA available:', torch.cuda.is_available(), '|', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'no GPU')
+```
+
+**Step 2 — Get the dataset onto Colab**
+
+The ILI dataset (`national_illness.csv`) ships in the standard Autoformer Google Drive bundle: [https://drive.google.com/drive/folders/1ZOYpTUa82_jCcxIdTmyr0LXQfvaM9vIy](https://drive.google.com/drive/folders/1ZOYpTUa82_jCcxIdTmyr0LXQfvaM9vIy). Download `national_illness.csv` to your own Google Drive, then mount it in Colab:
+
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+!mkdir -p data/illness
+!cp '/content/drive/MyDrive/national_illness.csv' data/illness/national_illness.csv
+```
+
+**Step 3 — Get the code onto Colab.** Pick one of:
+
+- **Option A: clone via Personal Access Token (PAT)** — if you have a PAT for this repo, paste:
+
+  ```python
+  REPO_URL = 'https://<USERNAME>:<YOUR_PAT>@github.com/<OWNER>/<REPO>.git'
+  !git clone $REPO_URL /content/Project
+  %cd /content/Project
+  !pip install -q -r code/requirements.txt
+  ```
+
+  Generate a PAT at [github.com/settings/tokens](https://github.com/settings/tokens) with `repo` scope.
+
+- **Option B: paste the notebook directly** — open `notebooks/illness_runner.ipynb` in this repo, copy each cell into your Colab notebook, and run top-to-bottom. The notebook is self-contained: it installs dependencies, sanity-checks the data loader, and runs the full multi-seed + AR ablation + per-step decomposition with one click.
+
+**Step 4 — Run the experiments**
+
+If you cloned the repo (Option A), launch `notebooks/illness_runner.ipynb` in Colab. If you pasted the notebook (Option B), just run all cells. Either way you'll get:
+
+- All 4 horizons × 2 modes × 3 seeds (24 runs) for PatchTST direct and AR.
+- DLinear baseline for all 4 horizons.
+- Aggregate test MSE table vs. paper.
+- Per-step MSE decomposition plot with rollout-boundary annotations.
+
+**Override any `Config` field from the CLI**, e.g. `--override pred_len=36 seed=42 forecasting_mode=autoregressive`. The notebook does this internally to sweep horizons, seeds, and modes.
+
+**Local fallback.** If you'd rather run locally, the same notebook runs unchanged on Jupyter as long as you have a CUDA-capable GPU. From the repo root:
 
 ```bash
 pip install -r code/requirements.txt
-python code/scripts/smoke_test.py                # sanity check
-python code/scripts/test_patchtst_ar.py          # AR-head regression test
-
-# One ILI run
-python code/main.py --config code/configs/illness_patchtst_24.yaml
-
-# Multi-seed PatchTST sweep + AR ablation
-jupyter notebook notebooks/illness_runner.ipynb
-
-# Full Electricity sweep (exploratory)
-bash code/scripts/run_all.sh
-
-# Aggregate results/*.json into results/summary.csv vs.\ paper Table 3
-python code/scripts/summarize.py
+python code/scripts/smoke_test.py            # sanity check
+python code/scripts/test_patchtst_ar.py      # AR-head regression test
+python code/main.py --config code/configs/illness_patchtst_24.yaml   # single run
+jupyter notebook notebooks/illness_runner.ipynb                       # full sweep
+python code/scripts/summarize.py             # aggregate results/*.json → results/summary.csv
 ```
-
-Override any `Config` field from the CLI, e.g. `--override pred_len=36 seed=42 forecasting_mode=autoregressive`.
-
-**Compute.** Single T4 GPU or a modern CPU is sufficient for the ILI track. Electricity is heavier but still fits on a single T4.
 
