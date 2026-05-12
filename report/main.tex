@@ -15,7 +15,8 @@
 
 \title{Reproducing PatchTST on the ILI Benchmark}
 \author{Cade Jin \quad Chenkai Shen \quad Derek Xu \\
-        Cornell University \quad CS 4782 (Spring 2026)}
+        Cornell University \quad CS 4782 (Spring 2026) \\
+        \small Code: \url{https://github.com/Derek-Cornell/Project}}
 \date{\vspace{-1.5em}}
 
 \begin{document}
@@ -28,7 +29,7 @@ For years, Transformer-based time series forecasters underperformed simple linea
 We reproduce that claim on ILI, the smallest benchmark in the paper, and add an ablation the paper does not include. PatchTST uses a \emph{direct} head, a single linear layer of output dimension $T$. We swap it for an \emph{autoregressive} (AR) head that emits one patch at a time and rolls forward $\lceil T/P\rceil$ times. We expected AR to be at a disadvantage from compounding errors and exposure bias, with a possible parameter-efficiency upside. AR's head stays the same size regardless of $T$ while direct's grows linearly with horizon, which can matter on small datasets where the direct head has more parameters than training samples.
 
 \section*{2. Chosen Result}
-We target the ILI rows of \textbf{Table 3} in Nie et al., comparing supervised PatchTST against DLinear at horizons $T \in \{24, 36, 48, 60\}$ weeks with look-back $L = 104$. ILI is the only benchmark where DLinear's challenge is sharpest. With $n{=}966$ weekly samples and 7 channels, it is exactly the regime where a Transformer should over-fit.
+We target the ILI rows of \textbf{Table 3} of Nie et al., comparing supervised PatchTST against DLinear at horizons $T \in \{24, 36, 48, 60\}$ weeks with look-back $L = 104$. We initially started with Electricity but a single training run took close to two hours on the A100, and the autoregressive head was projected to run much slower since it calls the encoder once per rollout. To iterate fast on the AR ablation, we switched to ILI, the smallest benchmark in the paper ($n{=}966$ weekly samples, 7 channels), where a full multi-seed sweep runs in minutes per horizon.
 
 \section*{3. Methodology}
 \textbf{Re-implementation.} We rebuilt PatchTST and DLinear from scratch in PyTorch. PatchTST uses channel-independence, patching with $P{=}24, S{=}2$ (92\% overlap, 42 tokens), a 3-layer Transformer encoder with BatchNorm and residual attention, $d_{\text{model}}{=}16$, $H{=}4$ heads, $d_{\text{ff}}{=}128$, dropout 0.3, and RevIN (\texttt{affine{=}False}). DLinear uses the standard moving-average decomposition with a \texttt{Linear}$(L \to T)$ per component, summed. Both apply the standard 70/10/20 chronological split with \texttt{StandardScaler} fit on training data only. We verified our PatchTST against the source by copying weights across and confirming max abs diff $= 0.0$ in direct mode.
