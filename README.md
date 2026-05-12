@@ -1,6 +1,6 @@
-# Patches &gt; Linears? Reproducing PatchTST on the ILI Benchmark
+# Reproducing PatchTST on the ILI Benchmark
 
-Cornell CS 4782 (Spring 2026) final project · Cade Jin · Chenkai Shen · Derek Xu
+Cade Jin · Chenkai Shen · Derek Xu
 
 ## 1. Introduction
 
